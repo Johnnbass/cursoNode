@@ -3,6 +3,8 @@ const bodyParser = require("body-parser");
 const mongodb = require("mongodb").MongoClient;
 const assert = require("assert");
 const ObjectID = require("mongodb").ObjectId;
+const multiparty = require("connect-multiparty");
+const fs = require("fs");
 
 // Instancia express
 const app = express();
@@ -10,6 +12,7 @@ const app = express();
 // body-parser
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(multiparty());
 
 const port = 3000;
 
@@ -36,13 +39,13 @@ function query(db, dados) {
 
   switch (dados.operacao) {
     case "inserir":
-      collection.insertOne(dados.dados, function (err, rst) {
-        if (err) {
-          dados.res.status(400).json(err);
-        } else {
-          dados.res.status(200).json({ result: rst.result, ops: rst.ops[0] });
-        }
-      });
+      // collection.insertOne(dados.dados, function (err, rst) {
+      //   if (err) {
+      //     dados.res.status(400).json(err);
+      //   } else {
+      //     dados.res.status(200).json({ result: rst.result, ops: rst.ops[0] });
+      //   }
+      // });
       break;
     case "consultar":
       let params = {};
@@ -72,7 +75,7 @@ function query(db, dados) {
       );
       break;
     case "excluir":
-      collection.remove(dados.params, function(err, rst) {
+      collection.remove(dados.params, function (err, rst) {
         if (err) {
           dados.res.status(404).json(err);
         } else {
@@ -92,6 +95,8 @@ app.get("/", function (req, res) {
 });
 
 app.post("/api", function (req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
   const dados = {
     dados: req.body,
     collection: "postagens",
@@ -99,7 +104,17 @@ app.post("/api", function (req, res) {
     req,
     res,
   };
-  conn(dados);
+  console.log(dados)
+  // const path_origem = req.files.arquivo.path;
+  // const path_destino = "./uploads" + req.files.arquivo.originalFilename;
+
+  // fs.rename(path_origem, path_destino, function (err) {
+  //   if (err) {
+  //     res.status(500).json({ error: err });
+  //     return;
+  //   }
+  //   conn(dados);
+  // });
 });
 
 app.get("/api", function (req, res) {
