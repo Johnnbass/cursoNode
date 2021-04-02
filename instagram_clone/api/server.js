@@ -13,6 +13,14 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(multiparty());
+app.use(function (req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  res.setHeader("Access-Control-Allow-Credentials", true);
+
+  next();
+});
 
 const port = 3000;
 
@@ -39,13 +47,13 @@ function query(db, dados) {
 
   switch (dados.operacao) {
     case "inserir":
-      // collection.insertOne(dados.dados, function (err, rst) {
-      //   if (err) {
-      //     dados.res.status(400).json(err);
-      //   } else {
-      //     dados.res.status(200).json({ result: rst.result, ops: rst.ops[0] });
-      //   }
-      // });
+      collection.insertOne(dados.dados, function (err, rst) {
+        if (err) {
+          dados.res.status(400).json(err);
+        } else {
+          dados.res.status(200).json({ result: rst.result, ops: rst.ops[0] });
+        }
+      });
       break;
     case "consultar":
       let params = {};
@@ -63,7 +71,14 @@ function query(db, dados) {
     case "atualizar":
       collection.update(
         dados.params,
-        { $set: dados.dados },
+        {
+          $push: {
+            comentarios: {
+              id_comentario: new ObjectID(),
+              comentario: dados.dados.comentario,
+            },
+          },
+        },
         {},
         function (err, rst) {
           if (err) {
@@ -75,13 +90,21 @@ function query(db, dados) {
       );
       break;
     case "excluir":
-      collection.remove(dados.params, function (err, rst) {
-        if (err) {
-          dados.res.status(404).json(err);
-        } else {
-          dados.res.status(200).json(rst);
+      collection.update(
+        {},
+        { $pull: {
+            comentarios: { id_comentario: ObjectID(dados.params._id) },
+          },
+        },
+        { multi: true },
+        function (err, rst) {
+          if (err) {
+            dados.res.status(404).json(err);
+          } else {
+            dados.res.status(200).json(rst);
+          }
         }
-      });
+      );
       break;
     default:
       break;
@@ -95,26 +118,31 @@ app.get("/", function (req, res) {
 });
 
 app.post("/api", function (req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const data = new Date();
+  const timestamp = data.getTime();
 
-  const dados = {
-    dados: req.body,
-    collection: "postagens",
-    operacao: "inserir",
-    req,
-    res,
-  };
-  console.log(dados)
-  // const path_origem = req.files.arquivo.path;
-  // const path_destino = "./uploads" + req.files.arquivo.originalFilename;
+  const url_imagem = timestamp + "_" + req.files.arquivo.originalFilename;
 
-  // fs.rename(path_origem, path_destino, function (err) {
-  //   if (err) {
-  //     res.status(500).json({ error: err });
-  //     return;
-  //   }
-  //   conn(dados);
-  // });
+  const path_origem = req.files.arquivo.path;
+  const path_destino = "./uploads" + url_imagem;
+
+  fs.rename(path_origem, path_destino, function (err) {
+    if (err) {
+      res.status(500).json({ error: err });
+      return;
+    }
+
+    const dados = {
+      url_imagem: url_imagem,
+      titulo: req.body.titulo,
+      collection: "postagens",
+      operacao: "inserir",
+      req,
+      res,
+    };
+
+    conn(dados);
+  });
 });
 
 app.get("/api", function (req, res) {
@@ -125,6 +153,18 @@ app.get("/api", function (req, res) {
     res,
   };
   conn(dados);
+});
+
+app.get("/imagens/:imagem", function (req, res) {
+  const img = req.params.imagem;
+  fs.readFile(`./uploads/${img}`, function (err, conteudo) {
+    if (err) {
+      res.status(400).json(err);
+      return;
+    }
+    res.writeHead(200, { "content-type": "image/jpg" });
+    res.end(content);
+  });
 });
 
 app.get("/api/:id", function (req, res) {
